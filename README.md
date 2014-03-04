@@ -1,0 +1,4 @@
+sudoku
+======
+
+Sudoku generator / solver
