@@ -1,0 +1,306 @@
+<section>
+<header>Algorithmes utilisés</header>
+
+<p>Pour être franc, je n'ai pas fais de recherche sur ce qui existait déjà, j'ai donc surement utilisé un algo très commun (qui à même peut-être un nom...).</p>
+
+<p>On part d'une grille déjà remplie et respectant les propriétés du sudoku, à savoir :
+<ul>
+<li>Chaque ligne contient les nombres de 1 à 9, une seule fois</li>
+<li>De même pour les collones</li>
+<li>De même pour les "régions" (groupe de 3x3 cases)</li>
+</ul>
+Je n'insiste pas là dessus, il y à surement la masse d'infos sur wikipédia. A partir de cette grille complète, on lui applique un certain nombre de transformations conservant ces propriétés. <i>Attention, les transformations que l'on appliques ne sont pas optimales, elles comprennent un défaut que j'explique dans la sous partie qui va bien.</i><br />
+On a donc une grille "mélangée", et respectant les propriétés du sudoku, il ne reste plus qu'à virer des cases à droite à gauche... Mais pas n'importe comment : on va faire en sorte de ne jamais donner d'ambiguité dans la résolution. Cette partie de l'algo sera expliquée au moment venu.</p>
+</section>
+
+<section>
+<header>Représentation en mémoire</header>
+
+<p>La façon la plus simple de représenter une grille de sudoku en mémoire est bien sur d'utiliser une tableau de 81 entiers. (grille = 9x9 cases)<br />.
+Vu que c'est le plus simple possible et que je n'aime pas me prendre la tête, c'est comme ça que je vais faire. Chaque case du tableau sera bien sur la valeur dans la grille, et la valeur <code>0</code> sera utilisée pour représenter une case vide.</p>
+
+<p>Pour accéder aux cellules du sudoku, je me fais deux petites fonctions : <code>at</code> et <code>set</code>. Ce sont de simples accesseurs, <code>int at(sudoku, i, j)</code> me renvoie l'entier à la case <code>[i; j]</code>, et <code>set(sudoku, i, j, value)</code> place la valeur <i>value</i> à la case <code>[i; j]</code>.<br />
+En plus de ça, ça me permet de vérifier que je n'accède pas à une case out of bounds (auquel cas j'affiche un message d'erreur et je kill le programme bien salement). Vachement utile en debug :p.</p>
+
+<div id="code">
+int at(int *sudoku, int i, int j)
+{
+  if (i < 0 || j < 0 || i >= 9 || j >= 9)
+  {
+    printf("Trying to access sudoku[%d; %d]\n", i, j);
+    exit(1);
+  }
+  return sudoku[9*i+j];
+}
+
+void set(int *sudoku, int i, int j, int val)
+{
+  if (i < 0 || j < 0 || i >= 9 || j >= 9)
+  {
+    printf("Trying to set sudoku[%d; %d]\n", i, j);
+    exit(1);
+  }
+  sudoku[9*i+j] = val;
+}
+</div>
+</section>
+
+<section>
+<header>Remplissage</header>
+
+<p>Pour remplir la grille en respectant les propriétés, on a deux options :
+<ul>
+<li>On hard-code la grille</li>
+<li>On réfléchit un tout petit peu</li>
+</ul>
+</p>
+
+<p>Hard-coder les datas est une bad practice de manière générale. Dans notre cas, ça n'a pas beaucoup d'importance, mais on va quand même passer par la phase de réflexion parce que c'est un poil plus intéressant :). Je paste quand même la grille hard-codée, le but du remplissage est d'arriver au même résultat, mais en passant par du code...</p>
+
+<div id="code">
+int sudoku[81] = { 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                   4, 5, 6, 7, 8, 9, 1, 2, 3,
+                   7, 8, 9, 1, 2, 3, 4, 5, 6,
+                   2, 3, 4, 5, 6, 7, 8, 9, 1,
+                   5, 6, 7, 8, 9, 1, 2, 3, 4,
+                   8, 9, 1, 2, 3, 4, 5, 6, 7,
+                   3, 4, 5, 6, 7, 8, 9, 1, 2,
+                   6, 7, 8, 9, 1, 2, 3, 4, 5,
+                   9, 1, 2, 3, 4, 5, 6, 7, 8 };
+</div>
+
+<p>Deux petites fonctions vont nous aider : j'ai nommé <code>void fill(int*)</code> et <code>void fillLine(int*, int, int)</code>. La première fonction prend la grille en paramètre, et remplie la grille, et la seconde prend, en plus de la grille, le numéro de la ligne et le nombre de départ. C'est un tout petite peu de math, niveau CM1, le code se passe donc d'explications.</p>
+
+<div id="code">
+void fillLine(int *sudoku, int l, int s)
+{
+  for (int i = 0; i < 9; ++i)
+    set(sudoku, l, i, (s + i) % 9 + 1);
+}
+
+void fill(int *sudoku)
+{
+  for (int i = 0; i < 3; ++i)
+  {
+    for (int j = 0; j < 3; ++j)
+      fillLine(sudoku, i*3+j, 3 * j + i);
+  }
+}
+</div>
+
+<p>L'avantage de cette technique est aussi de pouvoir déclarer un tableau static de 81 entiers, et de le passer à la fonction fill. Ca permet ne pas avoir à s'en occuper lors de la déclaration du tableau. (Je sais pas si c'est très compréhensible ce que je viens de dire O.o).</p>
+
+</section>
+
+<section>
+<header>Randomization</header>
+
+<p>On va maintenant voir comment mélanger ce tableau sans perdre les propriétés d'une grille de sudoku.</p>
+
+<p>A partir de la grille complète, on va procéder par swaps. On a 4 swaps possibles : 2 lignes / collones d'une même région ou 2 blocs de lignes / colones.</p>
+
+<p>Swap de deux lignes / colones d'un même bloc : sur une grille de sudoku, on a 3 blocs de lignes et 3 blocs de colones. On a les bloc de lignes / colones <code>1; 2; 3</code>, <code>4; 5; 6</code> et <code>7; 8; 9</code>. Si on swap deux lignes, il faut qu'elles appartiennent au même bloc de lines, sinon les propriétés ne sont plus vérifiées pour la région.</p>
+
+<p>Swap de deux blocs : il s'agit ici de swaper un groupe de 3 lignes / colones avec un autre. Bien sur, vu que l'on bouge les régions ensemble, cela ne pose aucun problème.</p>
+
+<p>Pour ce faire, on va créer quelques fonctions très simples : <code>void swapCells(int* sudoku, int i1, int j1, int i2, int j2)</code>: swap deux cases de la grille, <code>void swapCols(int* sudoku, int c1, int c2)</code>: swap deux colones, respectivement <code>swapRows(int* sudoku, int r1, int r2)</code>, <code>void swapColsBlock(int *sudoku, int c1, int c2)</code>: swap un bloc de deux colones, respectivement bien sur <code>void swapRowsBlock(int *sudoku, int r1, int r2);</code> et enfin <code>void randomize(int *sudoku)</code>, qui s'occupe d'appeler les fonctions précédentes un certain nombre de fois, de manière random.</p>
+
+<div id="code">
+void swapCells(int* sudoku, int i1, int j1, int i2, int j2)
+{
+  int t = at(sudoku, i1, j1);
+  set(sudoku, i1, j1, at(sudoku, i2, j2));
+  set(sudoku, i2, j2, t);
+}
+
+void swapCols(int *sudoku, int c1, int c2)
+{
+  for (int i = 0; i < 9; ++i)
+    swapCells(sudoku, i, c1, i, c2);
+}
+
+void swapRows(int *sudoku, int r1, int r2)
+{
+  for (int i = 0; i < 9; ++i)
+    swapCells(sudoku, r1, i, r2, i);
+}
+
+void swapColsBlock(int *sudoku, int c1, int c2)
+{
+  for (int i = 0; i < 3; ++i)
+    swapCols(sudoku, 3 * c1 + i, 3 * c2 + i);
+}
+
+void swapRowsBlock(int *sudoku, int r1, int r2)
+{
+  for (int i = 0; i < 3; ++i)
+    swapRows(sudoku, 3 * r1 + i, 3 * r2 + i);
+}
+
+void randomize(int *sudoku)
+{
+  for (int i = 0; i < 1000; ++i)
+  {
+    int a = (rand() % 3) * 3;
+    switch (rand() % 4)
+    {
+    case 0: swapCols(sudoku, a + (rand() % 3), a + (rand() % 3)); break;
+    case 1: swapRows(sudoku, a + (rand() % 3), a + (rand() % 3)); break;
+    case 2: swapColsBlock(sudoku, rand() % 3, rand() % 3); break;
+    case 3: swapRowsBlock(sudoku, rand() % 3, rand() % 3); break;
+    default: break;
+    }
+  }
+}
+</div>
+
+<p>Petits détail à propos de cette méthode de mélange de la grille : elle n'est pas optimal. En effet, 3 nombres d'une même ligne / colone d'une même région se retrouveront sur toutes les lignes / colones des autres régions.<br />
+Par exemple, si on trouve un 1, un 2 et un 3 sur une même ligne d'une même région, on peut alors être certain que quelque si l'on trouve un autre 1 sur une autre ligne, let 2 et le 3 seront dans la même région.<br />
+C'est peut-être pas clair, mais c'est pas simple à expliquer non plus ! Bref, en regardant d'un peu plus près une grille randomée, on se rend tout de suite compte du problème.</p>
+</section>
+
+<section>
+<header>Masquage de certaines cases</header>
+
+<p>Nous avons donc maintenant une grille de sudoku terminée. Le but de cette partie est de rendre cette grille "jouable", en supprimant certaines cases. Bien sur, il serait très facile de virer la moitiée des cases, et de dire "C'est bon, terminé !", mais cela pose un problème : il est possible que lors de la résolution, on tombe sur une ambiguité, et que l'on soit bloqué. C'est souvent le cas dans les grilles dites "difficiles" d'ailleurs.<br />
+Supprimer un certain nombre de cases random n'est pas difficile, on va donc tenter un algo un poil plus challenging, qui donnera une grille de sudoku sans aucune ambiguité. Je vais d'abord expliquer l'algo de façon générale, puis j'expliquerai chaque fonctions une à une.</p>
+
+<p>L'algo en lui même n'est pas compliqué : on trouve une case que l'on peut supprimer sans que cela ne crée d'ambiguité, on la supprime, et on continue. C'est ce dont s'occupe la fonction <code>void hideCells(int *sudoku)</code>.<br />
+Le problème revient donc maintenant à trouver une case supprimable. La fonction <code>int findCellToHide(int *sudoku, int i, int j)</code> s'en chargera.<br />
+Cette fonction fait appel à <code>int isAmbigousToHide</code>, qui renvoie un booléen disant si on peut virer la case <code>[i; j]</code> sans créer d'ambiguité.<br />
+Pour pouvoir déterminer cela, cette derniere s'aidera du travail de <code>int isValuePossible(int *sudoku, int i, int j, int val)</code>, qui bien sur détermine si la valeur <code>value</code> est possible à la case <code>i, j</code>.</p>
+
+<p>Explication maintenant de chaque fonction pas à pas. On va partir de la dernière, et remonter jusqu'à la première.</p>
+
+<p><code>int isValuePossible(int *sudoku, int i, int j, int value)</code> : Il s'agit ici de savoir si la <code>value</code> est possible à placer dans à la case <code>i, j</code>. Si c'est le cas, cela veut dire que l'on respecte les 3 propriétés du sudoku. C'est tout ce qu'il y a à faire.</p>
+
+<pre><code>int isValuePossible(int *sudoku, int i, int j, int val)
+{
+  for (int p = 0; p < 9; ++p)
+  {
+    if (p != i && at(sudoku, p, j) == val)
+      return 0;
+  }
+
+  for (int p = 0; p < 9; ++p)
+  {
+    if (p != j && at(sudoku, i, p) == val)
+      return 0;
+  }
+
+  int l = (i / 3) * 3;
+  int c = (i / 3) * 3;
+
+  for (int p = 0; p < 3; ++p)
+  {
+    for (int q = 0; q < 3; ++q)
+    {
+      if (p != i && q != j && at(sudoku, l + p, c + q) == val)
+        return 0;
+    }
+  }
+
+  return 1;
+}</code></pre>
+
+<p><code>int isAmbigousToHide(int *sudoku, int i, int j)</code> : renvoie 1 si le fait de retirer la case <code>[i, j]</code> provoque une ambiguité. On va juste prendre un entier initialisé à 0, et pour i allant de 1 à 9, si il est possible de placer i à la case <code>[i, j]</code>, on incrémente notre entier. S'il est suppérieur à 1 à la fin de la boule, c'est mort.</p>
+<pre><code>int isAmbigousToHide(int *sudoku, int i, int j)
+{
+  int n = 0;
+
+  for (int p = 1; p <= 9; ++p)
+  {
+    if (isValuePossible(sudoku, i, j, p))
+      ++n;
+  }
+
+  return n > 1;
+}</code></pre>
+
+<p><code>int findCellToHide(int *sudoku, int *i, int *j)</code> : trouve une case qu'il est possibe d'effacer. On passe les deux entiers i et j par adresse pour changer leurs valeurs directement. Ces entiers sont initialisés aux coordonnées de la case à partir de laquelle on veut partir pour chercher la prochaine case supprimable. Si on a testé toutes les cases, et qu'aucune ne peut être supprimée, on retourne 0 pour indiquer que c'est terminé. (sinon, on retourne 1).</p>
+
+<pre><code>int findCellToHide(int *sudoku, int *i, int *j)
+{
+  int si = *i;
+  int sj = *j;
+
+  do {
+    *i = *i + 1;
+    if (*i >= 9)
+    {
+      *i = 0;
+      *j = *j + 1;
+      if (*j >= 9)
+        *j = 0;
+    }
+
+    if (at(sudoku, *i, *j) && !isAmbigousToHide(sudoku, *i, *j))
+      return 1;
+
+  } while (*i != si || *j != sj);
+
+  return 0;
+}</code></pre>
+
+<p>Enin, <code>void hideCells(int *sudoku)</code>. Tant qu'il y a des cases à virer, on vire des cases ! Pas bien compliqué. Petite remarque quand même, on appel <code>findCellToHide</code> avec des valeurs random à chaque boucle, celà permet de dispatcher les cases vides partout sur la grille.</p>
+
+<pre><code>void hideCells(int *sudoku)
+{
+  int go = 1;
+  int i, j;
+
+  do {
+    i = rand() % 9;
+    j = rand() % 9;
+    go = findCellToHide(sudoku, &i, &j);
+    if (go)
+      set(sudoku, i, j, 0);
+  } while (go);
+}</code></pre>
+</section>
+
+<section>
+<header>Conclusion</header>
+
+<p>On va quand même écrire une petite fonction <code>void generate(int *sudoku)</code>, qui va creéer une grille jouable :
+<pre><code>void generate(int *sudoku)
+{
+  fill(sudoku);
+  randomize(sudoku);
+  hideCells(sudoku);
+}
+</code></pre>
+
+<p>Allez, je met aussi une petite fonction <code>void print(int *sudoku)</code> qui affiche la grille en mode "pretty-print" (vraiment parce que je suis sympa, hein ! :p). Note : l'affichage du x pour un nombre négatif c'est surtout utile en débug...</p>
+<pre><code>void print(int *sudoku)
+{
+  char buf[2];
+  int d;
+
+  for (int i = 0; i < 9; ++i)
+  {
+    if (i && !(i % 3))
+    {
+      for (int j = 0; j < 11; ++j)
+        printf("%c", j == 3 || j == 7 ? '+' : '-');
+      printf("\n");
+    }
+
+    for (int j = 0; j < 9; ++j)
+    {
+      d = at(sudoku, i, j);
+      if (d < 0)
+        sprintf(buf, "x");
+      else if (d != 0)
+      sprintf(buf, "%d", d);
+      else
+        sprintf(buf, " ");
+      printf("%s%s", buf, j % 3 == 2 && j != 8 ? "|" : "");
+    }
+
+    printf("\n");
+  }
+}</code></pre>
+
+<p>Le générateur est terminé, je rappel que les sources sont dispo sur mon git (cf. début de l'article). J'ai aussi fais une petite tarball <a href="files/sudoku_generator.tar.gz">dispo ici</a>. On peut maintenant passer à la seconde partie : le solveur...</p>
+</section>
