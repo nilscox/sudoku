@@ -9,7 +9,7 @@
 void usage(const char *prgm)
 {
   printf("usage: %s type [--pretty] [--help]\n", prgm);
-  printf("type:   print | generate | solve\n");
+  printf("type:   print | generator | solver\n");
   printf("pretty: pretty printing\n");
   printf("help:   show this help\n");
 }
