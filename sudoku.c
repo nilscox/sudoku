@@ -57,7 +57,7 @@ void sudoPrint(int *sudoku)
 
 void sudoPrettyPrint(int *sudoku)
 {
-  char buf[2];
+  char buf[20];
   int d;
 
   for (int i = 0; i < 9; ++i)
@@ -106,7 +106,7 @@ void sudoRead(int *sudoku)
 
 void debugPrint(int *sudoku)
 {
-  char buf[2];
+  char buf[20];
   int d;
 
   printf("   ");
